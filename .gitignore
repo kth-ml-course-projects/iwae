@@ -57,3 +57,12 @@ docs/_build/
 target/
 
 .DS_Store
+.idea
+datasets
+datasets/BinaryMNIST/*.amat
+datasets/BinaryMNIST/*ubyte
+datasets/MNIST/*.amat
+datasets/MNIST/*ubyte
+datasets/OMNIGLOT/*.mat
+datasets/OMNIGLOT/*ubyte
+iwae_results

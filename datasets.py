@@ -1,4 +1,3 @@
-
 import config
 
 import theano
@@ -26,7 +25,7 @@ class DatasetTheano():
             self.data[subdataset] = theano.shared(value=self.data[subdataset].astype(theano.config.floatX))
 
     def minibatchIindex_minibatch_size(self, index, minibatch_size, subdataset='train', **kwargs):
-        return self.data[subdataset][index*minibatch_size: (index+1)*minibatch_size]
+        return self.data[subdataset][index * minibatch_size: (index + 1) * minibatch_size]
 
     def get_data_dim(self):
         return self.data['train'].get_value(borrow=True).shape[1]
@@ -35,8 +34,8 @@ class DatasetTheano():
         return self.data[subdataset].get_value(borrow=True).shape[0]
 
     def get_train_bias_np(self):
-        return -np.log(1./np.clip(self.get_train_mean_np(), 0.001, 0.999)-1.)\
-                .astype(theano.config.floatX)
+        return -np.log(1. / np.clip(self.get_train_mean_np(), 0.001, 0.999) - 1.) \
+            .astype(theano.config.floatX)
 
     def get_train_mean_np(self):
         return np.mean(self.data['train'].get_value(), axis=0)[None, :].astype(theano.config.floatX)
@@ -49,7 +48,7 @@ class BinarizedDatasetTheano():
             self.data[subdataset] = dataset.data[subdataset]
 
     def minibatchIindex_minibatch_size(self, index, minibatch_size, srng, subdataset):
-        data = self.data[subdataset][index*minibatch_size: (index+1)*minibatch_size]
+        data = self.data[subdataset][index * minibatch_size: (index + 1) * minibatch_size]
         binary_data = T.cast(T.le(srng.uniform(data.shape), data), data.dtype)
         return binary_data
 
@@ -60,8 +59,8 @@ class BinarizedDatasetTheano():
         return self.data[subdataset].get_value(borrow=True).shape[0]
 
     def get_train_bias_np(self):
-        return -np.log(1./np.clip(self.get_train_mean_np(), 0.001, 0.999)-1.)\
-                .astype(theano.config.floatX)
+        return -np.log(1. / np.clip(self.get_train_mean_np(), 0.001, 0.999) - 1.) \
+            .astype(theano.config.floatX)
 
     def get_train_mean_np(self):
         return np.mean(self.data['train'].get_value(), axis=0)[None, :].astype(theano.config.floatX)
@@ -72,10 +71,10 @@ def binarized_mnist(n_validation=400):
         with open(imgs_filename, 'rb') as f:
             f.seek(4)
             nimages, rows, cols = struct.unpack('>iii', f.read(12))
-            dim = rows*cols
+            dim = rows * cols
 
             images = np.fromfile(f, dtype=np.dtype(np.ubyte))
-            images = (images/255.0).astype('float32').reshape((nimages, dim))
+            images = (images / 255.0).astype('float32').reshape((nimages, dim))
 
         return images
 
@@ -89,7 +88,8 @@ def binarized_mnist(n_validation=400):
 
 def binarized_shuffled_omniglot(n_validation=1345):
     def reshape_data(data):
-        return data.reshape((-1, 28, 28)).reshape((-1, 28*28), order='fortran')
+        return data.reshape((-1, 28, 28)).reshape((-1, 28 * 28), order='fortran')
+
     omni_raw = scipy.io.loadmat(
         os.path.join(config.DATASETS_DIR, 'OMNIGLOT', 'chardata.mat'))
 
@@ -102,6 +102,7 @@ def binarized_shuffled_omniglot(n_validation=1345):
 def binarized_mnist_fixed_binarization():
     def lines_to_np_array(lines):
         return np.array([[int(i) for i in line.split()] for line in lines])
+
     with open(os.path.join(config.DATASETS_DIR, 'BinaryMNIST', 'binarized_mnist_train.amat')) as f:
         lines = f.readlines()
     train_data = lines_to_np_array(lines).astype('float32')
@@ -112,7 +113,8 @@ def binarized_mnist_fixed_binarization():
         lines = f.readlines()
     test_data = lines_to_np_array(lines).astype('float32')
 
-    return DatasetTheano(np.concatenate([train_data, validation_data], axis=0), test_data, n_used_for_validation=10000, shuffle=False)
+    return DatasetTheano(np.concatenate([train_data, validation_data], axis=0), test_data, n_used_for_validation=10000,
+                         shuffle=False)
 
 
 def load_dataset_from_name(dataset_name):

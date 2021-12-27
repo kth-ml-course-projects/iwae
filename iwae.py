@@ -2,12 +2,13 @@ import theano
 import theano.tensor as T
 import numpy as np
 import collections
+
 import nnet
 import utils
 import progressbar
 from utils import t_repeat, log_mean_exp, reshape_and_tile_images
 
-log2pi = T.constant(np.log(2*np.pi).astype(theano.config.floatX))
+log2pi = T.constant(np.log(2 * np.pi).astype(theano.config.floatX))
 
 floatX = theano.config.floatX
 
@@ -20,8 +21,9 @@ class UnitGaussianSampler:
         return srng.normal(shape)
 
     def log_likelihood_samples(self, samples):
-        '''Given samples as rows of a matrix, returns their log-likelihood under the zero mean unit covariance Gaussian as a vector'''
-        return -log2pi*T.cast(samples.shape[1], floatX)/2 - T.sum(T.sqr(samples), axis=1) / 2
+        """Given samples as rows of a matrix, returns their log-likelihood under the zero mean unit covariance
+        Gaussian as a vector """
+        return -log2pi * T.cast(samples.shape[1], floatX) / 2 - T.sum(T.sqr(samples), axis=1) / 2
 
 
 class GaussianSampler:
@@ -49,8 +51,8 @@ class GaussianSampler:
         return self.samplesImean_sigma_srng(mean, sigma, srng)
 
     def log_likelihood_samplesImean_sigma(self, samples, mean, sigma):
-        return -log2pi*T.cast(samples.shape[1], floatX) / 2 -                \
-               T.sum(T.sqr((samples-mean)/sigma) + 2*T.log(sigma), axis=1) / 2
+        return -log2pi * T.cast(samples.shape[1], floatX) / 2 - \
+               T.sum(T.sqr((samples - mean) / sigma) + 2 * T.log(sigma), axis=1) / 2
 
     def log_likelihood_samplesIx(self, samples, x):
         mean, sigma = self.mean_sigmaIx(x)
@@ -65,7 +67,8 @@ class GaussianSampler:
         mean_network = nnet.Linear.random(n_units[-2], n_units[-1])
         if mean is not None:
             mean_network.b.set_value(mean.astype(floatX))
-        sigma_network = nnet.NNet().add_layer(nnet.Linear.random(n_units[-2], n_units[-1])).add_layer(nnet.Exponential())
+        sigma_network = nnet.NNet().add_layer(nnet.Linear.random(n_units[-2], n_units[-1])).add_layer(
+            nnet.Exponential())
 
         return GaussianSampler(h_network, mean_network, sigma_network)
 
@@ -133,8 +136,9 @@ class IWAE:
 
     def log_weightsIq_samples(self, q_samples):
         log_weights = 0
-        for layer_q, layer_p, prev_sample, next_sample in zip(self.q_layers, reversed(self.p_layers), q_samples, q_samples[1:]):
-            log_weights += layer_p.log_likelihood_samplesIx(prev_sample, next_sample) -\
+        for layer_q, layer_p, prev_sample, next_sample in zip(self.q_layers, reversed(self.p_layers), q_samples,
+                                                              q_samples[1:]):
+            log_weights += layer_p.log_likelihood_samplesIx(prev_sample, next_sample) - \
                            layer_q.log_likelihood_samplesIx(next_sample, prev_sample)
         log_weights += self.prior.log_likelihood_samples(q_samples[-1])
         return log_weights
@@ -155,21 +159,21 @@ class IWAE:
         dummy_vec = T.vector(dtype=theano.config.floatX)
 
         if model_type in ['vae', 'VAE']:
-            print "Training a VAE"
+            print("Training a VAE")
             return collections.OrderedDict([(
-                                             param,
-                                             T.grad(T.sum(log_ws)/T.cast(num_samples, log_ws.dtype), param)
-                                            )
-                                            for param in self.params])
+                param,
+                T.grad(T.sum(log_ws) / T.cast(num_samples, log_ws.dtype), param)
+            )
+                for param in self.params])
         else:
-            print "Training an IWAE"
-            return collections.OrderedDict([(
-                                             param,
-                                             theano.clone(
-                                                T.grad(T.dot(log_ws, dummy_vec), param),
-                                                replace={dummy_vec: ws_normalized_vector})
-                                            )
-                                            for param in self.params])
+            print("Training an IWAE")
+            grad_p = [theano.clone(
+                T.grad(T.dot(log_ws, dummy_vec), param),
+                replace={dummy_vec: ws_normalized_vector})
+                for param in self.params]
+            return (1.0 / float(num_samples)) * T.dot(log_ws, ws_normalized_vector), \
+                   collections.OrderedDict([(param, grad_p[pi]) for pi, param in enumerate(self.params)])  # , \
+            # theano.shared(np.linalg.norm(self.p_layers[0].sigma_network.first_linear_layer_weights_np()))
 
     def log_marginal_likelihood_estimate(self, x, num_samples, srng):
         num_xs = x.shape[0]
@@ -196,16 +200,18 @@ class IWAE:
     def random(latent_units, hidden_units_q, hidden_units_p, bias=None, data_type='binary'):
         layers_q = []
         for units_prev, units_next, hidden_units in zip(latent_units, latent_units[1:], hidden_units_q):
-            layers_q.append(GaussianSampler.random([units_prev]+hidden_units+[units_next]))
+            layers_q.append(GaussianSampler.random([units_prev] + hidden_units + [units_next]))
 
         layers_p = []
         for units_prev, units_next, hidden_units in \
                 zip(list(reversed(latent_units))[:-1], list(reversed(latent_units))[1:-1], hidden_units_p[:-1]):
-            layers_p.append(GaussianSampler.random([units_prev]+hidden_units+[units_next]))
+            layers_p.append(GaussianSampler.random([units_prev] + hidden_units + [units_next]))
         if data_type == 'binary':
-            layers_p.append(BernoulliSampler.random([latent_units[1]]+hidden_units_p[-1]+[latent_units[0]], bias=bias))
+            layers_p.append(
+                BernoulliSampler.random([latent_units[1]] + hidden_units_p[-1] + [latent_units[0]], bias=bias))
         elif data_type == 'continuous':
-            layers_p.append(GaussianSampler.random([latent_units[1]]+hidden_units_p[-1]+[latent_units[0]], bias=bias))
+            layers_p.append(
+                GaussianSampler.random([latent_units[1]] + hidden_units_p[-1] + [latent_units[0]], bias))
 
         prior = UnitGaussianSampler()
         return IWAE(layers_q, layers_p, prior)
@@ -216,7 +222,7 @@ def random_iwae(latent_units, hidden_units_q, hidden_units_p, dataset):
                        bias=dataset.get_train_bias_np())
 
 
-def get_samples(model, num_samples, seed=123):
+def get_samples(model, num_samples, seed=42):
     srng = utils.srng(seed)
     prior_samples = model.prior.samplesIshape_srng((num_samples, model.first_p_layer_weights_np().shape[0]), srng)
     samples = [prior_samples]
@@ -227,8 +233,8 @@ def get_samples(model, num_samples, seed=123):
     return reshape_and_tile_images(samples_function())
 
 
-def measure_marginal_log_likelihood(model, dataset, subdataset, seed=123, minibatch_size=20, num_samples=50):
-    print "Measuring {} log likelihood".format(subdataset)
+def measure_marginal_log_likelihood(model, dataset, subdataset, seed=42, minibatch_size=15, num_samples=50):
+    print("Measuring {} log likelihood".format(subdataset))
     srng = utils.srng(seed)
     test_x = dataset.data[subdataset]
     n_examples = test_x.get_value(borrow=True).shape[0]
@@ -253,13 +259,14 @@ def measure_marginal_log_likelihood(model, dataset, subdataset, seed=123, miniba
         pbar.update(i)
     pbar.finish()
 
-    marginal_log_likelihood = sum_of_log_likelihoods/n_examples
+    marginal_log_likelihood = sum_of_log_likelihoods / n_examples
 
     return marginal_log_likelihood
 
 
 def get_first_q_layer_weights(model):
     return utils.reshape_and_tile_images(model.first_q_layer_weights_np().T)
+
 
 def get_last_p_layer_weights(model):
     return utils.reshape_and_tile_images(model.last_p_layer_weights_np())
@@ -292,11 +299,11 @@ def chop_units_with_variance_under_threshold(model, variances, threshold=0.01):
     for order, var in zip(ords, variances):
         ordered_var = var[order[::-1]]
         last_index = np.searchsorted(ordered_var, threshold)
-        indices.append(order[:order.shape[0]-last_index])
+        indices.append(order[:order.shape[0] - last_index])
 
     num_units_in_input = model.q_layers[0].first_linear_layer_weights_np().shape[0]
-    for q_layer, p_layer, ord_incoming, ord_outcoming in\
-            zip(model.q_layers, reversed(model.p_layers), [np.arange(num_units_in_input)]+indices, indices):
+    for q_layer, p_layer, ord_incoming, ord_outcoming in \
+            zip(model.q_layers, reversed(model.p_layers), [np.arange(num_units_in_input)] + indices, indices):
         mean_net = q_layer.mean_network
         sigma_net = q_layer.sigma_network
         h_net = q_layer.h_network

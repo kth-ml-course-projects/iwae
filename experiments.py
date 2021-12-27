@@ -1,3 +1,7 @@
+from __future__ import print_function
+
+import random
+
 import datasets
 import iwae
 import optimizers
@@ -12,19 +16,20 @@ import numpy as np
 
 
 def save_checkpoint(directory_name, i, model, optimizer, srng):
-    '''Saves model, optimizer, and random number generator state srng.state as a pickle file named training_state[i].pkl'''
+    """Saves model, optimizer, and random number generator state srng.state as a pickle file named
+    training_state[i].pkl """
+    filename_to_save = os.path.join(directory_name, "training_state{}.pkl".format(i))
     try:
-        filename_to_save = os.path.join(directory_name, "training_state{}.pkl".format(i))
         with open(filename_to_save, "wb") as f:
             pkl.dump([model, optimizer, srng.rstate], f, protocol=pkl.HIGHEST_PROTOCOL)
     except:
-        print "Failed to write to file {}".format(filename_to_save)
+        print("Failed to write to file {}".format(filename_to_save))
 
 
 def load_checkpoint(directory_name, i):
-    '''Loads model, optimizer, and random number generator from a pickle file named training_state[i].pkl
+    """Loads model, optimizer, and random number generator from a pickle file named training_state[i].pkl
     Returns -1, None, None, None if loading failed
-    Returns i, model, optimizer, random number generator if loading succeedeed'''
+    Returns i, model, optimizer, random number generator if loading succeeded"""
     try:
         load_from_filename = os.path.join(directory_name, "training_state{}.pkl".format(i))
 
@@ -40,7 +45,9 @@ def load_checkpoint(directory_name, i):
 
 
 def post_experiment(directory_name, dataset, model):
-    '''Analyze the model: draw samples, measure test and training log likelihoods'''
+    """
+    Analyze the model: draw samples, measure test and training log likelihoods.
+    """
     samples = iwae.get_samples(model, 100)
     q_weights = iwae.get_first_q_layer_weights(model)
     p_weights = iwae.get_last_p_layer_weights(model)
@@ -49,13 +56,13 @@ def post_experiment(directory_name, dataset, model):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     plt.imshow(samples, cmap='Greys')
-    plt.savefig(os.path.join(directory_name, "samples.jpg"))
+    plt.savefig(os.path.join(directory_name, "samples.png"))
     plt.close()
     plt.imshow(q_weights, cmap='Greys')
-    plt.savefig(os.path.join(directory_name, "q_weights.jpg"))
+    plt.savefig(os.path.join(directory_name, "q_weights.png"))
     plt.close()
     plt.imshow(p_weights, cmap='Greys')
-    plt.savefig(os.path.join(directory_name, "p_weights.jpg"))
+    plt.savefig(os.path.join(directory_name, "p_weights.png"))
     plt.close()
 
     num_samples = 5000
@@ -64,19 +71,19 @@ def post_experiment(directory_name, dataset, model):
 
     with open(os.path.join(directory_name, "test_log_likelihood_{}_samples.txt".format(num_samples)), "w") as f:
         f.write(str(marginal_log_likelihood))
-    print marginal_log_likelihood
+    print(marginal_log_likelihood)
 
     marginal_log_likelihood = iwae.measure_marginal_log_likelihood(model=model, dataset=dataset,
                                                                    subdataset="train", num_samples=num_samples)
 
     with open(os.path.join(directory_name, "train_log_likelihood_{}_samples.txt".format(num_samples)), "w") as f:
         f.write(str(marginal_log_likelihood))
-    print marginal_log_likelihood
+    print(marginal_log_likelihood)
 
     variances = iwae.get_units_variances(model, dataset)
     for i, var in enumerate(variances):
         plt.hist(np.log(var), bins=20)
-        plt.savefig(os.path.join(directory_name, "log_variances_layer_{}.png".format(i+1)))
+        plt.savefig(os.path.join(directory_name, "log_variances_layer_{}.png".format(i + 1)))
         plt.close()
     iwae.chop_units_with_variance_under_threshold(model, variances)
 
@@ -86,9 +93,10 @@ def post_experiment(directory_name, dataset, model):
     marginal_log_likelihood = iwae.measure_marginal_log_likelihood(model=model, dataset=dataset,
                                                                    subdataset="test", num_samples=num_samples)
 
-    with open(os.path.join(directory_name, "test_log_likelihood_{}_samples_dead_units_removed.txt".format(num_samples)), "w") as f:
+    with open(os.path.join(directory_name, "test_log_likelihood_{}_samples_dead_units_removed.txt".format(num_samples)),
+              "w") as f:
         f.write(str(marginal_log_likelihood))
-    print marginal_log_likelihood
+    print(marginal_log_likelihood)
 
 
 def directory_to_store(**kwargs):
@@ -101,8 +109,10 @@ def directory_to_store(**kwargs):
     return os.path.join(config.RESULTS_DIR, directory_name)
 
 
-def training_experiment(directory_name, latent_units, hidden_units_q, hidden_units_p, k, model_type, dataset, checkpoint=-1):
+def training_experiment(directory_name, latent_units, hidden_units_q, hidden_units_p, k, model_type, dataset,
+                        checkpoint=-1):
     '''The experiment that trains a model with given parameters'''
+
     def checkpoint0(dataset):
         data_dimension = dataset.get_data_dim()
         model = iwae.random_iwae(latent_units=[data_dimension] + latent_units,
@@ -116,9 +126,9 @@ def training_experiment(directory_name, latent_units, hidden_units_q, hidden_uni
         return model, optimizer, srng
 
     def checkpoint1to8(i, dataset, model, optimizer, srng):
-        optimizer.learning_rate = 1e-4*round(10.**(1-(i-1)/7.), 1)
+        optimizer.learning_rate = 1e-4 * round(10. ** (1 - (i - 1) / 7.), 1)
         model = train.train(model=model, dataset=dataset, optimizer=optimizer,
-                            minibatch_size=20, n_epochs=3**(i-1), srng=srng,
+                            minibatch_size=100, n_epochs=3 ** (i - 1), srng=srng,
                             num_samples=k, model_type=model_type)
         return model, optimizer, srng
 
@@ -128,14 +138,14 @@ def training_experiment(directory_name, latent_units, hidden_units_q, hidden_uni
     if checkpoint >= 0:
         loaded_checkpoint, model, optimizer, srng = load_checkpoint(directory_name, checkpoint)
         if loaded_checkpoint == -1:
-            print "Unable to load checkpoint {} from {}, starting the experiment from the beginning".format(checkpoint, directory_name)
-
-    if loaded_checkpoint < 0:
+            print("Unable to load checkpoint {} from {}, starting the experiment from the beginning"
+                  .format(checkpoint, directory_name))
+    else:
         model, optimizer, srng = checkpoint0(dataset)
         save_checkpoint(directory_name, 0, model, optimizer, srng)
         loaded_checkpoint = 0
 
-    for i in range(loaded_checkpoint+1, 9):
+    for i in range(loaded_checkpoint + 1, 9):
         model, optimizer, srng = checkpoint1to8(i, dataset, model, optimizer, srng)
         save_checkpoint(directory_name, i, model, optimizer, srng)
     loaded_checkpoint = 8
@@ -144,13 +154,13 @@ def training_experiment(directory_name, latent_units, hidden_units_q, hidden_uni
 
 
 def experiment2(directory_name, dataset='MNIST', direction='vae_to_iwae'):
-    '''The experiment that trains a vae initialized at an iwae or vice versa'''
+    """The experiment that trains a vae initialized at an iwae or vice versa"""
     dataset = datasets.load_dataset_from_name(dataset)
     if direction == 'vae_to_iwae':
         previous_args = dict(layers=1, model='vae', k=1, dataset='MNIST', exp='train')
         new_model_type = 'iwae'
         new_k = 50
-    elif direction == 'iwae_to_vae':
+    else:  # if direction == 'iwae_to_vae'
         previous_args = dict(layers=1, model='iwae', k=50, dataset='MNIST', exp='train')
         new_model_type = 'vae'
         new_k = 1
@@ -158,7 +168,7 @@ def experiment2(directory_name, dataset='MNIST', direction='vae_to_iwae'):
     loaded_checkpoint, model, optimizer, srng = load_checkpoint(previous_directory_name, 8)
     optimizer.learning_rate = 1e-4
     model = train.train(model=model, dataset=dataset, optimizer=optimizer,
-                        minibatch_size=20, n_epochs=3**7, srng=srng,
+                        minibatch_size=20, n_epochs=3 ** 7, srng=srng,
                         num_samples=new_k, model_type=new_model_type)
     save_checkpoint(directory_name, 0, model, optimizer, srng)
 
@@ -174,20 +184,24 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', '-d', choices=['MNIST', 'OMNI', 'BinFixMNIST'], default='MNIST')
     parser.add_argument('--checkpoint', '-c', type=int, default=-1)
 
+    np.random.seed(42)
+    random.seed(42)
+
     args = parser.parse_args()
     if args.layers == 1:
         latent_units = [50]
         hidden_units_q = [[200, 200]]
         hidden_units_p = [[200, 200]]
-    elif args.layers == 2:
+    else:  # args.layers == 2
         latent_units = [100, 50]
         hidden_units_q = [[200, 200], [100, 100]]
         hidden_units_p = [[100, 100], [200, 200]]
-    directory_name = directory_to_store(**args.__dict__)
-    if not os.path.exists(directory_name):
-        os.makedirs(directory_name)
+    _directory_name = directory_to_store(**args.__dict__)
+    if not os.path.exists(_directory_name):
+        os.makedirs(_directory_name)
     if args.exp == 'train':
-        training_experiment(directory_name, latent_units=latent_units, hidden_units_q=hidden_units_q, hidden_units_p=hidden_units_p,
+        training_experiment(_directory_name, latent_units=latent_units, hidden_units_q=hidden_units_q,
+                            hidden_units_p=hidden_units_p,
                             k=args.k, model_type=args.model, dataset=args.dataset, checkpoint=args.checkpoint)
     else:
-        experiment2(directory_name, direction=args.exp, dataset=args.dataset)
+        experiment2(_directory_name, direction=args.exp, dataset=args.dataset)
